@@ -44,8 +44,14 @@
         .time {
             font-size: 80px;
             color: white;
-            margin-bottom: 48px;
+            margin-bottom: 8px;
             font-weight: bold;
+        }
+        
+        .date {
+            color: #888888;
+            font-size: 18px;
+            margin-bottom: 48px;
         }
         
         .julian-label {
@@ -72,6 +78,7 @@
     <div class="container">
         <div class="label">ZULU TIME (UTC)</div>
         <div class="time" id="zuluTime">Loading...</div>
+        <div class="date" id="zuluDate">Loading...</div>
         
         <div class="julian-label">JULIAN DATE</div>
         <div class="julian-date" id="julianDate">---</div>
@@ -79,61 +86,70 @@
     </div>
 
     <script>
+        // ============================================================
+        // 🔥 FIXED: ALWAYS uses UTC time, never local time
+        // ============================================================
+        
         let serverTimeOffset = 0;
+        let usingServerTime = false;
 
-        // Try multiple time APIs for reliability
+        // Try to sync with time server
         async function syncTimeWithServer() {
-            const apis = [
-                // Option 1: Time API (most reliable)
-                async () => {
-                    const response = await fetch('https://timeapi.io/api/Time/current/zone?timeZone=UTC');
-                    const data = await response.json();
-                    return new Date(data.dateTime);
-                },
-                // Option 2: World Time API
-                async () => {
-                    const response = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC');
-                    const data = await response.json();
-                    return new Date(data.utc_datetime);
-                }
-            ];
-
-            for (const api of apis) {
-                try {
-                    const serverDateTime = await api();
-                    serverTimeOffset = serverDateTime.getTime() - Date.now();
-                    document.getElementById('statusMessage').textContent = '✅ Time synchronized with server';
-                    document.getElementById('statusMessage').style.color = '#2ecc71';
-                    return serverDateTime;
-                } catch (error) {
-                    console.warn('API failed, trying next...', error);
-                }
+            try {
+                const response = await fetch('https://timeapi.io/api/Time/current/zone?timeZone=UTC');
+                const data = await response.json();
+                const serverDateTime = new Date(data.dateTime);
+                serverTimeOffset = serverDateTime.getTime() - Date.now();
+                usingServerTime = true;
+                document.getElementById('statusMessage').textContent = '✅ Time synchronized with server';
+                document.getElementById('statusMessage').style.color = '#2ecc71';
+                return serverDateTime;
+            } catch (error) {
+                console.warn('Server sync failed, using device UTC time', error);
+                document.getElementById('statusMessage').textContent = 'ℹ️ Using device UTC time (accurate to your system clock)';
+                document.getElementById('statusMessage').style.color = '#f1c40f';
+                serverTimeOffset = 0;
+                usingServerTime = false;
+                return new Date();
             }
-
-            // If all APIs fail, use local time
-            document.getElementById('statusMessage').textContent = '⚠️ Using local system time. Time is accurate to your device.';
-            document.getElementById('statusMessage').style.color = '#f1c40f';
-            serverTimeOffset = 0;
-            return new Date();
         }
 
         function getAccurateTime() {
-            return new Date(Date.now() + serverTimeOffset);
+            // If server sync worked, use corrected time
+            if (usingServerTime) {
+                return new Date(Date.now() + serverTimeOffset);
+            }
+            // Otherwise, use device time but FORCE UTC
+            return new Date();
         }
 
         function updateDisplay() {
-            // Get the current accurate time (UTC-based)
+            // Get the current time
             const now = getAccurateTime();
             
-            // --- ZULU TIME (UTC) - ALWAYS use getUTCHours() ---
+            // ============================================================
+            // 🔥 CRITICAL: ALWAYS use getUTCHours() NOT getHours()
+            // ============================================================
             const utcHours = String(now.getUTCHours()).padStart(2, '0');
             const utcMinutes = String(now.getUTCMinutes()).padStart(2, '0');
             const utcSeconds = String(now.getUTCSeconds()).padStart(2, '0');
+            
+            // Display time
             document.getElementById('zuluTime').textContent = `${utcHours}:${utcMinutes}:${utcSeconds}`;
-
-            // --- JULIAN DATE (Day of Year) - based on UTC date ---
-            // This ensures the Julian date changes at UTC midnight, not local midnight
-            const startOfYear = new Date(Date.UTC(now.getUTCFullYear(), 0, 0));
+            
+            // Display date (Thursday, July 16, 2026 format)
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            const dayName = days[now.getUTCDay()];
+            const monthName = months[now.getUTCMonth()];
+            const day = now.getUTCDate();
+            const year = now.getUTCFullYear();
+            document.getElementById('zuluDate').textContent = `${dayName}, ${monthName} ${day}, ${year}`;
+            
+            // ============================================================
+            // 🔥 JULIAN DATE: Based on UTC date, not local date
+            // ============================================================
+            const startOfYear = new Date(Date.UTC(year, 0, 0));
             const diff = now - startOfYear;
             const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24));
             document.getElementById('julianDate').textContent = String(dayOfYear).padStart(3, '0');
