@@ -51,7 +51,7 @@ When programming radios with **25 kHz channel spacing** (25u), accurate time coo
 
 ## 🌐 Live Site
 
-**👉 [https://rednecktanku.github.io/zulutime/](https://rednecktanku.github.io/zulutime/)**
+**👉 [https://rednecktanku.github.io/zulutime/](https://rednecktanuki.github.io/zulutime/)**
 
 ---
 
