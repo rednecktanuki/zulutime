@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Zulu Time & Julian Date</title>
     <style>
-        /* ... your existing styles ... */
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
+        
         body {
             background-color: #1a1a1a;
             display: flex;
@@ -20,33 +20,39 @@
             font-family: 'Courier New', monospace;
             color: white;
         }
+        
         .container {
             text-align: center;
             padding: 40px;
         }
+        
         .label {
             color: #888888;
             font-size: 18px;
             letter-spacing: 2px;
             margin-bottom: 8px;
         }
+        
         .time {
             font-size: 80px;
             color: white;
             margin-bottom: 48px;
             font-weight: bold;
         }
+        
         .julian-label {
             color: #888888;
             font-size: 18px;
             letter-spacing: 2px;
             margin-bottom: 8px;
         }
+        
         .julian-date {
             font-size: 48px;
             color: white;
             font-weight: bold;
         }
+        
         .status {
             color: #555;
             font-size: 14px;
@@ -65,69 +71,83 @@
     </div>
 
     <script>
-        // --- Core Logic ---
-        let serverTimeOffset = 0; // The difference between server time and local time
+        let serverTimeOffset = 0;
+        let syncAttempts = 0;
 
-        // Function to fetch the exact time from a trusted API
+        // Try multiple time APIs for reliability
         async function syncTimeWithServer() {
-            try {
-                const response = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC');
-                if (!response.ok) throw new Error('Network response was not ok');
-                const data = await response.json();
-                
-                // Parse the server's UTC datetime string
-                const serverDateTime = new Date(data.utc_datetime);
-                
-                // Calculate the offset in milliseconds between server time and local system time
-                serverTimeOffset = serverDateTime.getTime() - Date.now();
-                
-                document.getElementById('statusMessage').textContent = '✅ Time synchronized with server';
-                document.getElementById('statusMessage').style.color = '#2ecc71';
-                return serverDateTime;
-            } catch (error) {
-                console.error("Failed to sync time:", error);
-                document.getElementById('statusMessage').textContent = '⚠️ Using local system time. Try refreshing.';
-                document.getElementById('statusMessage').style.color = '#f1c40f';
-                serverTimeOffset = 0;
-                return new Date(); // Fallback to local time
+            const apis = [
+                // Option 1: Time API (most reliable)
+                async () => {
+                    const response = await fetch('https://timeapi.io/api/Time/current/zone?timeZone=UTC');
+                    const data = await response.json();
+                    return new Date(data.dateTime);
+                },
+                // Option 2: World Time API
+                async () => {
+                    const response = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC');
+                    const data = await response.json();
+                    return new Date(data.utc_datetime);
+                },
+                // Option 3: Time.is (fallback)
+                async () => {
+                    const response = await fetch('https://time.is/UTC');
+                    const html = await response.text();
+                    // Extract time from the page
+                    const match = html.match(/id="clock" style="font-size:64px;color:#d00;padding:0;margin:0;line-height:0.95em">(\d{2}:\d{2}:\d{2})/);
+                    if (match) {
+                        const now = new Date();
+                        const timeParts = match[1].split(':');
+                        now.setUTCHours(parseInt(timeParts[0]), parseInt(timeParts[1]), parseInt(timeParts[2]), 0);
+                        return now;
+                    }
+                    throw new Error('Could not parse time');
+                }
+            ];
+
+            for (const api of apis) {
+                try {
+                    const serverDateTime = await api();
+                    serverTimeOffset = serverDateTime.getTime() - Date.now();
+                    document.getElementById('statusMessage').textContent = '✅ Time synchronized with server';
+                    document.getElementById('statusMessage').style.color = '#2ecc71';
+                    return serverDateTime;
+                } catch (error) {
+                    console.warn('API failed, trying next...', error);
+                }
             }
+
+            // If all APIs fail, use local time
+            document.getElementById('statusMessage').textContent = '⚠️ Using local system time. Time is accurate to your device.';
+            document.getElementById('statusMessage').style.color = '#f1c40f';
+            serverTimeOffset = 0;
+            return new Date();
         }
 
-        // Function to get the current accurate time
         function getAccurateTime() {
-            // This is the magic: we add the calculated offset to the current local time
             return new Date(Date.now() + serverTimeOffset);
         }
 
-        // Function to update the UI every second
         function updateDisplay() {
             const now = getAccurateTime();
             
-            // --- Zulu Time ---
             const utcHours = String(now.getUTCHours()).padStart(2, '0');
             const utcMinutes = String(now.getUTCMinutes()).padStart(2, '0');
             const utcSeconds = String(now.getUTCSeconds()).padStart(2, '0');
             document.getElementById('zuluTime').textContent = `${utcHours}:${utcMinutes}:${utcSeconds}`;
 
-            // --- Julian Date (Day of Year) ---
             const startOfYear = new Date(Date.UTC(now.getUTCFullYear(), 0, 0));
             const diff = now - startOfYear;
             const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24));
             document.getElementById('julianDate').textContent = String(dayOfYear).padStart(3, '0');
         }
 
-        // --- Main Execution ---
         async function initializeClock() {
-            await syncTimeWithServer(); // Get the initial offset
-            
-            // Update the display immediately after sync
+            await syncTimeWithServer();
             updateDisplay();
-            
-            // Then update every second
             setInterval(updateDisplay, 1000);
         }
 
-        // Start the clock!
         initializeClock();
     </script>
 </body>
