@@ -2,85 +2,26 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Zulu Time & Julian Date</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        html, body {
-            height: 100%;
-            width: 100%;
-            overflow: hidden;
-            background-color: #1a1a1a;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
+            background-color: #1a1a1a;
             display: flex;
             justify-content: center;
             align-items: center;
+            min-height: 100vh;
             font-family: 'Courier New', monospace;
             color: white;
         }
-
-        .container {
-            text-align: center;
-            padding: 20px;
-            width: 100%;
-            max-width: 600px;
-            margin: 0 auto;
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-        }
-
-        .label {
-            color: #888888;
-            font-size: clamp(14px, 2.5vw, 22px);
-            letter-spacing: 2px;
-            margin-bottom: 8px;
-        }
-
-        .time {
-            font-size: clamp(48px, 15vw, 100px);
-            color: white;
-            margin-bottom: 8px;
-            font-weight: bold;
-            line-height: 1;
-        }
-
-        .date {
-            color: #888888;
-            font-size: clamp(14px, 2.5vw, 22px);
-            margin-bottom: 40px;
-        }
-
-        .julian-label {
-            color: #888888;
-            font-size: clamp(14px, 2.5vw, 22px);
-            letter-spacing: 2px;
-            margin-bottom: 8px;
-        }
-
-        .julian-date {
-            font-size: clamp(36px, 10vw, 64px);
-            color: white;
-            font-weight: bold;
-            line-height: 1;
-        }
-
-        .status {
-            color: #2ecc71;
-            font-size: clamp(10px, 1.5vw, 14px);
-            margin-top: 30px;
-            text-align: center;
-            position: relative;
-            clear: both;
-        }
+        .container { text-align: center; padding: 40px; }
+        .label { color: #888; font-size: 18px; letter-spacing: 2px; margin-bottom: 8px; }
+        .time { font-size: 80px; color: white; margin-bottom: 8px; font-weight: bold; }
+        .date { color: #888; font-size: 18px; margin-bottom: 48px; }
+        .julian-label { color: #888; font-size: 18px; letter-spacing: 2px; margin-bottom: 8px; }
+        .julian-date { font-size: 48px; color: white; font-weight: bold; }
+        .status { color: #555; font-size: 14px; margin-top: 20px; }
     </style>
 </head>
 <body>
@@ -91,13 +32,14 @@
 
         <div class="julian-label">JULIAN DATE</div>
         <div class="julian-date" id="julianDate">---</div>
-        <div class="status" id="statusMessage"></div>
+        <div class="status" id="statusMessage">Synchronizing with time server...</div>
     </div>
 
     <script>
         let serverTimeOffset = 0;
         let usingServerTime = false;
 
+        // Get accurate UTC time from a free API
         async function syncTimeWithServer() {
             try {
                 const response = await fetch('https://worldtimeapi.org/api/timezone/Etc/UTC');
@@ -106,13 +48,14 @@
                 const serverDateTime = new Date(data.utc_datetime);
                 serverTimeOffset = serverDateTime.getTime() - Date.now();
                 usingServerTime = true;
-                document.getElementById('statusMessage').textContent = '✅ Time synchronized';
+                document.getElementById('statusMessage').textContent = '✅ Time synchronized with server';
                 document.getElementById('statusMessage').style.color = '#2ecc71';
                 return serverDateTime;
             } catch (error) {
+                document.getElementById('statusMessage').textContent = 'ℹ️ Using device UTC time (accurate to system clock)';
+                document.getElementById('statusMessage').style.color = '#f1c40f';
                 serverTimeOffset = 0;
                 usingServerTime = false;
-                document.getElementById('statusMessage').textContent = '';
                 return new Date();
             }
         }
@@ -124,16 +67,19 @@
         function updateDisplay() {
             const now = getAccurateTime();
 
+            // --- ALWAYS use UTC methods ---
             const utcHours = String(now.getUTCHours()).padStart(2, '0');
             const utcMinutes = String(now.getUTCMinutes()).padStart(2, '0');
             const utcSeconds = String(now.getUTCSeconds()).padStart(2, '0');
             document.getElementById('zuluTime').textContent = `${utcHours}:${utcMinutes}:${utcSeconds}`;
 
+            // Date format: "Thursday, July 16, 2026"
             const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
             const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
             document.getElementById('zuluDate').textContent =
                 `${days[now.getUTCDay()]}, ${months[now.getUTCMonth()]} ${now.getUTCDate()}, ${now.getUTCFullYear()}`;
 
+            // Julian Date (day of year) based on UTC
             const startOfYear = new Date(Date.UTC(now.getUTCFullYear(), 0, 0));
             const dayOfYear = Math.floor((now - startOfYear) / (1000 * 60 * 60 * 24));
             document.getElementById('julianDate').textContent = String(dayOfYear).padStart(3, '0');
